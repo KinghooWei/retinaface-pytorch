@@ -91,6 +91,7 @@ def match(threshold, truths, priors, variances, labels, landms, loc_t, conf_t, l
     #----------------------------------------------#
     #   计算所有的先验框和真实框的重合程度
     #----------------------------------------------#
+    # (num_targets, num_priors)
     overlaps = jaccard(
         truths,
         point_form(priors)
@@ -100,6 +101,7 @@ def match(threshold, truths, priors, variances, labels, landms, loc_t, conf_t, l
     #   best_prior_overlap [truth_box,1]
     #   best_prior_idx [truth_box,1]
     #----------------------------------------------#
+    # (num_targets)
     best_prior_overlap, best_prior_idx = overlaps.max(1, keepdim=True)
     best_prior_idx.squeeze_(1)
     best_prior_overlap.squeeze_(1)
@@ -109,6 +111,7 @@ def match(threshold, truths, priors, variances, labels, landms, loc_t, conf_t, l
     #   best_truth_overlap [1,prior]
     #   best_truth_idx [1,prior]
     #----------------------------------------------#
+    # (num_priors)
     best_truth_overlap, best_truth_idx = overlaps.max(0, keepdim=True)
     best_truth_idx.squeeze_(0)
     best_truth_overlap.squeeze_(0)
@@ -122,11 +125,12 @@ def match(threshold, truths, priors, variances, labels, landms, loc_t, conf_t, l
         best_truth_idx[best_prior_idx[j]] = j
 
     #----------------------------------------------#
-    #   获取每一个先验框对应的真实框[num_priors,4]
+    #   获取每一个先验框对应的真实框(num_priors,4)
     #----------------------------------------------#
     matches = truths[best_truth_idx]            
-    # Shape: [num_priors] 此处为每一个anchor对应的label取出来
-    conf = labels[best_truth_idx]        
+    # Shape: (num_priors) 此处为每一个anchor对应的label取出来
+    conf = labels[best_truth_idx]
+    # 每一个先验框对应键点(num_priors, 10)
     matches_landm = landms[best_truth_idx]
            
     #----------------------------------------------#
@@ -164,14 +168,18 @@ class MultiBoxLoss(nn.Module):
         #----------------------------------------------#
         #   重合程度在多少以上认为该先验框可以用来预测
         #----------------------------------------------#
+        # 0.35
         self.threshold      = overlap_thresh
         #----------------------------------------------#
         #   正负样本的比率
         #----------------------------------------------#
+        # 7
         self.negpos_ratio   = neg_pos
+        # [0.1, 0.2]
         self.variance       = variance
         self.cuda           = cuda
 
+    # 对一个batch的样本计算损失
     def forward(self, predictions, priors, targets):
         #--------------------------------------------------------------------#
         #   取出预测结果的三个值：框的回归信息，置信度，人脸关键点的回归信息
@@ -190,6 +198,7 @@ class MultiBoxLoss(nn.Module):
         landm_t = torch.Tensor(num, num_priors, 10)
         conf_t  = torch.LongTensor(num, num_priors)
 
+        # 遍历一个batch的样本
         for idx in range(num):
             # 获得真实框与标签
             truths = targets[idx][:, :4].data
@@ -222,15 +231,19 @@ class MultiBoxLoss(nn.Module):
         #   有人脸关键点的人脸真实框的标签为1，没有人脸关键点的人脸真实框标签为-1
         #   所以计算人脸关键点loss的时候pos1 = conf_t > zeros
         #   计算人脸框的loss的时候pos = conf_t != zeros
-        #------------------------------------------------------------------------#  
+        #------------------------------------------------------------------------#
+        # (batch, num_priors)
         pos1 = conf_t > zeros
+        # (batch, num_priors, 10)
         pos_idx1 = pos1.unsqueeze(pos1.dim()).expand_as(landm_data)
+        # (473, 10) 某一batch有473个有关键点的正样本
         landm_p = landm_data[pos_idx1].view(-1, 10)
         landm_t = landm_t[pos_idx1].view(-1, 10)
         loss_landm = F.smooth_l1_loss(landm_p, landm_t, reduction='sum')
         
         pos = conf_t != zeros
         pos_idx = pos.unsqueeze(pos.dim()).expand_as(loc_data)
+        # (473, 4) 某一batch有473个有真实框的正样本
         loc_p = loc_data[pos_idx].view(-1, 4)
         loc_t = loc_t[pos_idx].view(-1, 4)
         loss_l = F.smooth_l1_loss(loc_p, loc_t, reduction='sum')
@@ -272,6 +285,7 @@ class MultiBoxLoss(nn.Module):
         neg_idx = neg.unsqueeze(2).expand_as(conf_data)
         
         # 选取出用于训练的正样本与负样本，计算loss
+        # (3888, 2)
         conf_p = conf_data[(pos_idx+neg_idx).gt(0)].view(-1,self.num_classes)
         targets_weighted = conf_t[(pos+neg).gt(0)]
         loss_c = F.cross_entropy(conf_p, targets_weighted, reduction='sum')

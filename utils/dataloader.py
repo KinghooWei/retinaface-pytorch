@@ -7,7 +7,9 @@ from utils.utils import preprocess_input
 
 class DataGenerator(data.Dataset):
     def __init__(self, txt_path, img_size):
+        # 840
         self.img_size = img_size
+        # './data/widerface/train/label.txt'
         self.txt_path = txt_path
 
         self.imgs_path, self.words = self.process_labels()
@@ -52,6 +54,7 @@ class DataGenerator(data.Dataset):
             annotation[0, 11] = label[14]  # l3_y
             annotation[0, 12] = label[16]  # l4_x
             annotation[0, 13] = label[17]  # l4_y
+            # 是否有关键点
             if (annotation[0, 4]<0):
                 annotation[0, 14] = -1
             else:

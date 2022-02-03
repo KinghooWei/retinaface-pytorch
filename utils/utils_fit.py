@@ -6,6 +6,7 @@ def get_lr(optimizer):
     for param_group in optimizer.param_groups:
         return param_group['lr']
 
+# 训练一个epoch
 def fit_one_epoch(model_train, model, loss_history, optimizer, criterion, epoch, epoch_step, gen, Epoch, anchors, cfg, cuda):
     total_r_loss = 0
     total_c_loss = 0
@@ -14,6 +15,7 @@ def fit_one_epoch(model_train, model, loss_history, optimizer, criterion, epoch,
     print('Start Train')
     with tqdm(total=epoch_step,desc=f'Epoch {epoch + 1}/{Epoch}',postfix=dict,mininterval=0.3) as pbar:
         for iteration, batch in enumerate(gen):
+            # 训练一个batch
             if iteration >= epoch_step:
                 break
             images, targets = batch[0], batch[1]

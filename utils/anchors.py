@@ -7,16 +7,21 @@ import torch
 class Anchors(object):
     def __init__(self, cfg, image_size=None):
         super(Anchors, self).__init__()
+        # [[16, 32], [64, 128], [256, 512]]
         self.min_sizes  = cfg['min_sizes']
+        # [8, 16, 32]
         self.steps      = cfg['steps']
+        # False
         self.clip       = cfg['clip']
         #---------------------------#
         #   图片的尺寸
         #---------------------------#
+        # (840, 840)
         self.image_size = image_size
         #---------------------------#
         #   三个有效特征层高和宽
         #---------------------------#
+        # [[105, 105], [53, 53], [27, 27]]
         self.feature_maps = [[ceil(self.image_size[0]/step), ceil(self.image_size[1]/step)] for step in self.steps]
 
     def get_anchors(self):
