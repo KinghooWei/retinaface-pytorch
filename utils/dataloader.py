@@ -26,39 +26,34 @@ class DataGenerator(data.Dataset):
         #-----------------------------------#
         img         = Image.open(self.imgs_path[index])
         labels      = self.words[index]
-        annotations = np.zeros((0, 15))
+        annotations = np.zeros((0, 41))
 
         if len(labels) == 0:
             return img, annotations
 
         for idx, label in enumerate(labels):
-            annotation = np.zeros((1, 15))
+            annotation = np.zeros((1, 41))
             #-----------------------------------#
             #   bbox 真实框的位置
             #-----------------------------------#
-            annotation[0, 0] = label[0]  # x1
-            annotation[0, 1] = label[1]  # y1
-            annotation[0, 2] = label[0] + label[2]  # x2
-            annotation[0, 3] = label[1] + label[3]  # y2
+            annotation[0, 0] = label[1]  # x1
+            annotation[0, 1] = label[2]  # y1
+            annotation[0, 2] = label[1] + label[3]  # x2
+            annotation[0, 3] = label[2] + label[4]  # y2
 
             #-----------------------------------#
             #   landmarks 人脸关键点的位置
             #-----------------------------------#
-            annotation[0, 4] = label[4]    # l0_x
-            annotation[0, 5] = label[5]    # l0_y
-            annotation[0, 6] = label[7]    # l1_x
-            annotation[0, 7] = label[8]    # l1_y
-            annotation[0, 8] = label[10]   # l2_x
-            annotation[0, 9] = label[11]   # l2_y
-            annotation[0, 10] = label[13]  # l3_x
-            annotation[0, 11] = label[14]  # l3_y
-            annotation[0, 12] = label[16]  # l4_x
-            annotation[0, 13] = label[17]  # l4_y
+            for i in range(4, 40):
+                annotation[0, i] = label[i+1]
+
+            # 类别：1：无口罩人脸    2：戴口罩人脸
+            annotation[0, 40] = label[0] + 1
             # 是否有关键点
-            if (annotation[0, 4]<0):
-                annotation[0, 14] = -1
-            else:
-                annotation[0, 14] = 1
+            # if (annotation[0, 4]<0):
+            #     annotation[0, 14] = -1
+            # else:
+            #     annotation[0, 14] = 1
             annotations = np.append(annotations, annotation, axis=0)
         target = np.array(annotations)
 
@@ -125,28 +120,28 @@ class DataGenerator(data.Dataset):
         #---------------------------------#
         if len(box)>0:
             np.random.shuffle(box)
-            box[:, [0,2,4,6,8,10,12]] = box[:, [0,2,4,6,8,10,12]]*nw/iw + dx
-            box[:, [1,3,5,7,9,11,13]] = box[:, [1,3,5,7,9,11,13]]*nh/ih + dy
+            box[:, [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38]] = box[:, [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38]]*nw/iw + dx
+            box[:, [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39]] = box[:, [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39]]*nh/ih + dy
             if flip: 
-                box[:, [0,2,4,6,8,10,12]] = w - box[:, [2,0,6,4,8,12,10]]
-                box[:, [5,7,9,11,13]]     = box[:, [7,5,9,13,11]]
+                box[:, [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38]] = w - box[:, [2,0,22,20,18,16,14,12,10,8,6,4,38,36,34,32,30,28,26,24]]
+                box[:, [5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39]]     = box[:, [23,21,19,17,15,13,11,9,7,5,39,37,35,33,31,29,27,25]]
             
             center_x = (box[:, 0] + box[:, 2])/2
             center_y = (box[:, 1] + box[:, 3])/2
         
             box = box[np.logical_and(np.logical_and(center_x>0, center_y>0), np.logical_and(center_x<w, center_y<h))]
 
-            box[:, 0:14][box[:, 0:14]<0] = 0
-            box[:, [0,2,4,6,8,10,12]][box[:, [0,2,4,6,8,10,12]]>w] = w
-            box[:, [1,3,5,7,9,11,13]][box[:, [1,3,5,7,9,11,13]]>h] = h
+            box[:, 0:40][box[:, 0:40]<0] = 0
+            box[:, [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38]][box[:, [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38]]>w] = w
+            box[:, [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39]][box[:, [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39]]>h] = h
             
             box_w = box[:, 2] - box[:, 0]
             box_h = box[:, 3] - box[:, 1]
             box = box[np.logical_and(box_w>1, box_h>1)] # discard invalid box
 
         box[:,4:-1][box[:,-1]==-1]=0
-        box[:, [0,2,4,6,8,10,12]] /= w
-        box[:, [1,3,5,7,9,11,13]] /= h
+        box[:, [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38]] /= w
+        box[:, [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39]] /= h
         box_data = box
         return image_data, box_data
         

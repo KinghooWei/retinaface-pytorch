@@ -9,19 +9,18 @@ from nets.mobilenet025 import MobileNetV1
 
 
 #---------------------------------------------------#
-#   种类预测（是否包含人脸）
+#   置信度预测（是否包含人脸）
 #---------------------------------------------------#
-class ClassHead(nn.Module):
+class ConfHead(nn.Module):
     def __init__(self,inchannels=512,num_anchors=2):
-        super(ClassHead,self).__init__()
-        self.num_anchors = num_anchors
-        self.conv1x1 = nn.Conv2d(inchannels,self.num_anchors*2,kernel_size=(1,1),stride=1,padding=0)
+        super(ConfHead, self).__init__()
+        self.conv1x1 = nn.Conv2d(inchannels,num_anchors,kernel_size=(1,1),stride=1,padding=0)
 
     def forward(self,x):
         out = self.conv1x1(x)
         out = out.permute(0,2,3,1).contiguous()
         
-        return out.view(out.shape[0], -1, 2)
+        return out.view(out.shape[0], -1)
 
 #---------------------------------------------------#
 #   预测框预测
@@ -43,13 +42,27 @@ class BboxHead(nn.Module):
 class LandmarkHead(nn.Module):
     def __init__(self,inchannels=512,num_anchors=2):
         super(LandmarkHead,self).__init__()
-        self.conv1x1 = nn.Conv2d(inchannels,num_anchors*10,kernel_size=(1,1),stride=1,padding=0)
+        self.conv1x1 = nn.Conv2d(inchannels,num_anchors*36,kernel_size=(1,1),stride=1,padding=0)
 
     def forward(self,x):
         out = self.conv1x1(x)
         out = out.permute(0,2,3,1).contiguous()
 
-        return out.view(out.shape[0], -1, 10)
+        return out.view(out.shape[0], -1, 36)
+
+#---------------------------------------------------#
+#   类别预测
+#---------------------------------------------------#
+class ClassHead(nn.Module):
+    def __init__(self,inchannels=512,num_anchors=2):
+        super(ClassHead,self).__init__()
+        self.conv1x1 = nn.Conv2d(inchannels,num_anchors*3,kernel_size=(1,1),stride=1,padding=0)
+
+    def forward(self,x):
+        out = self.conv1x1(x)
+        out = out.permute(0,2,3,1).contiguous()
+
+        return out.view(out.shape[0], -1, 3)
 
 class RetinaFace(nn.Module):
     def __init__(self, cfg = None, pretrained = False, mode = 'train'):
@@ -88,16 +101,17 @@ class RetinaFace(nn.Module):
         self.ssh2 = SSH(cfg['out_channel'], cfg['out_channel'])
         self.ssh3 = SSH(cfg['out_channel'], cfg['out_channel'])
 
-        self.ClassHead      = self._make_class_head(fpn_num=3, inchannels=cfg['out_channel'])
+        self.ConfHead      = self._make_conf_head(fpn_num=3, inchannels=cfg['out_channel'])
         self.BboxHead       = self._make_bbox_head(fpn_num=3, inchannels=cfg['out_channel'])
         self.LandmarkHead   = self._make_landmark_head(fpn_num=3, inchannels=cfg['out_channel'])
+        self.ClassHead   = self._make_class_head(fpn_num=3, inchannels=cfg['out_channel'])
 
         self.mode = mode
 
-    def _make_class_head(self,fpn_num=3,inchannels=64,anchor_num=2):
+    def _make_conf_head(self, fpn_num=3, inchannels=64, anchor_num=2):
         classhead = nn.ModuleList()
         for i in range(fpn_num):
-            classhead.append(ClassHead(inchannels,anchor_num))
+            classhead.append(ConfHead(inchannels, anchor_num))
         return classhead
     
     def _make_bbox_head(self,fpn_num=3,inchannels=64,anchor_num=2):
@@ -111,6 +125,12 @@ class RetinaFace(nn.Module):
         for i in range(fpn_num):
             landmarkhead.append(LandmarkHead(inchannels,anchor_num))
         return landmarkhead
+
+    def _make_class_head(self,fpn_num=3,inchannels=64,anchor_num=2):
+        classhead = nn.ModuleList()
+        for i in range(fpn_num):
+            classhead.append(ClassHead(inchannels,anchor_num))
+        return classhead
 
     def forward(self,inputs):
         #-------------------------------------------#
@@ -138,11 +158,13 @@ class RetinaFace(nn.Module):
         #   将所有结果进行堆叠
         #-------------------------------------------#
         bbox_regressions    = torch.cat([self.BboxHead[i](feature) for i, feature in enumerate(features)], dim=1)
-        classifications     = torch.cat([self.ClassHead[i](feature) for i, feature in enumerate(features)], dim=1)
+        conf_regressions     = torch.cat([self.ConfHead[i](feature) for i, feature in enumerate(features)], dim=1)
         ldm_regressions     = torch.cat([self.LandmarkHead[i](feature) for i, feature in enumerate(features)], dim=1)
+        classifications     = torch.cat([self.ClassHead[i](feature) for i, feature in enumerate(features)], dim=1)
+
 
         if self.mode == 'train':
-            output = (bbox_regressions, classifications, ldm_regressions)
+            output = (bbox_regressions, conf_regressions, ldm_regressions, classifications)
         else:
-            output = (bbox_regressions, F.softmax(classifications, dim=-1), ldm_regressions)
+            output = (bbox_regressions, F.softmax(classifications, dim=-1), ldm_regressions, conf_regressions)
         return output

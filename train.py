@@ -98,7 +98,7 @@ if __name__ == "__main__":
     if Cuda:
         anchors = anchors.cuda()
 
-    criterion       = MultiBoxLoss(2, 0.35, 7, cfg['variance'], Cuda)
+    criterion       = MultiBoxLoss(3, 0.35, 7, cfg['variance'], Cuda)
     loss_history    = LossHistory("logs/")
     #---------------------------------------------------------#
     #   训练分为两个阶段，分别是冻结阶段和解冻阶段。
@@ -120,7 +120,7 @@ if __name__ == "__main__":
         lr              = 1e-3
         Batch_size      = 8
         Init_Epoch      = 0
-        Freeze_Epoch    = 50
+        Freeze_Epoch    = 1
         
         optimizer       = optim.Adam(model_train.parameters(), lr, weight_decay = 5e-4)
         lr_scheduler    = optim.lr_scheduler.StepLR(optimizer, step_size = 1, gamma = 0.92)
