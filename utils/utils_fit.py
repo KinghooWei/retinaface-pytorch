@@ -8,7 +8,6 @@ def get_lr(optimizer):
 
 # 训练一个epoch
 def fit_one_epoch(model_train, model, loss_history, optimizer, criterion, epoch, epoch_step, gen, Epoch, anchors, cfg, cuda):
-    total_conf_loss = 0
     total_r_loss = 0
     total_conf_loss = 0
     total_landmark_loss = 0
@@ -60,5 +59,5 @@ def fit_one_epoch(model_train, model, loss_history, optimizer, criterion, epoch,
             pbar.update(1)
 
     print('Saving state, iter:', str(epoch+1))
-    torch.save(model.state_dict(), 'logs/Epoch%d-Total_Loss%.4f.pth'%((epoch+1),(total_conf_loss + total_r_loss + total_landmark_loss)/(epoch_step+1)))
+    torch.save(model.state_dict(), 'logs/Epoch%d-Total_Loss%.4f.pth'%((epoch+1),(total_conf_loss + total_r_loss + total_landmark_loss + total_c_loss)/(epoch_step+1)))
     loss_history.append_loss((total_conf_loss + total_r_loss + total_landmark_loss)/(epoch_step+1))

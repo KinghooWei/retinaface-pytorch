@@ -17,7 +17,7 @@ if __name__ == "__main__":
     #   是否使用Cuda
     #   没有GPU可以设置成False
     #-------------------------------#
-    Cuda = False
+    Cuda = True
     #--------------------------------#
     #   获得训练用的人脸标签与坐标
     #--------------------------------#
@@ -120,7 +120,7 @@ if __name__ == "__main__":
         lr              = 1e-3
         Batch_size      = 8
         Init_Epoch      = 0
-        Freeze_Epoch    = 1
+        Freeze_Epoch    = 50
         
         optimizer       = optim.Adam(model_train.parameters(), lr, weight_decay = 5e-4)
         lr_scheduler    = optim.lr_scheduler.StepLR(optimizer, step_size = 1, gamma = 0.92)
