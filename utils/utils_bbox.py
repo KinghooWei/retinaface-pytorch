@@ -69,7 +69,7 @@ def non_max_suppression(detection, conf_thres=0.5, nms_thres=0.3):
     #   在进行重合框筛选前就
     #   进行得分的筛选可以大幅度减少框的数量。
     #------------------------------------------#
-    mask        = detection[:, 4] >= conf_thres
+    mask        = detection[:, -1] >= conf_thres and detection[:, 4:7].argmax(0) > 0
     detection   = detection[mask]
 
     if len(detection) <= 0:
@@ -80,7 +80,7 @@ def non_max_suppression(detection, conf_thres=0.5, nms_thres=0.3):
     #------------------------------------------#
     keep = nms(
         detection[:, :4],
-        detection[:, 4],
+        detection[:, -1],
         nms_thres
     )
     best_box = detection[keep]

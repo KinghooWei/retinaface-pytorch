@@ -1,3 +1,4 @@
+import json
 import time
 
 import cv2
@@ -52,6 +53,7 @@ class Retinaface(object):
         #   没有GPU可以设置成False
         #--------------------------------#
         "cuda"              : True,
+        "json_path"         : "./data/classes.json"
     }
 
     @classmethod
@@ -106,6 +108,10 @@ class Retinaface(object):
     #   检测图片
     #---------------------------------------------------#
     def detect_image(self, image):
+        json_file = open(self.json_path, 'r')
+        class_dict = json.load(json_file)
+        json_file.close()
+        category_index = {v: k for k, v in class_dict.items()}
         #---------------------------------------------------#
         #   对输入图像进行一个备份，后面用于绘图
         #---------------------------------------------------#
@@ -151,16 +157,18 @@ class Retinaface(object):
             #---------------------------------------------------------#
             #   传入网络进行预测
             #---------------------------------------------------------#
-            loc, clazz, landms, conf = self.net(image)
+            loc, classes, landms, conf = self.net(image)
             
             #-----------------------------------------------------------#
             #   对预测框进行解码
             #-----------------------------------------------------------#
             boxes   = decode(loc.data.squeeze(0), self.anchors, self.cfg['variance'])
+            classes = classes.data.squeeze(0)
             #-----------------------------------------------------------#
             #   获得预测结果的置信度
             #-----------------------------------------------------------#
-            conf    = conf.data.squeeze(0)[:, 1:2]
+            conf    = conf.data.squeeze(0)
+
             #-----------------------------------------------------------#
             #   对人脸关键点进行解码
             #-----------------------------------------------------------#
@@ -169,7 +177,7 @@ class Retinaface(object):
             #-----------------------------------------------------------#
             #   对人脸识别结果进行堆叠
             #-----------------------------------------------------------#
-            boxes_conf_landms = torch.cat([boxes, conf, landms], -1)
+            boxes_conf_landms = torch.cat([boxes, classes, conf, landms], -1)
             boxes_conf_landms = non_max_suppression(boxes_conf_landms, self.confidence)
 
             if len(boxes_conf_landms) <= 0:
@@ -183,13 +191,15 @@ class Retinaface(object):
                     np.array([self.input_shape[0], self.input_shape[1]]), np.array([im_height, im_width]))
             
         boxes_conf_landms[:, :4] = boxes_conf_landms[:, :4] * scale
-        boxes_conf_landms[:, 5:] = boxes_conf_landms[:, 5:] * scale_for_landmarks
+        boxes_conf_landms[:, 8:] = boxes_conf_landms[:, 8:] * scale_for_landmarks
 
         for b in boxes_conf_landms:
-            text = "{:.4f}".format(b[4])
+            class_idx = b[4:7].argmax(0)
+            clazz = category_index[class_idx]
+            text = "{} {:.2%}".format(clazz, b[4 + class_idx])
             b = list(map(int, b))
             #---------------------------------------------------#
-            #   b[0]-b[3]为人脸框的坐标，b[4]为得分
+            #   b[0]-b[3]为人脸框的坐标，b[4 + class_idx]为得分
             #---------------------------------------------------#
             cv2.rectangle(old_image, (b[0], b[1]), (b[2], b[3]), (0, 0, 255), 2)
             cx = b[0]
@@ -197,15 +207,12 @@ class Retinaface(object):
             cv2.putText(old_image, text, (cx, cy),
                         cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
 
-            print(b[0], b[1], b[2], b[3], b[4])
+            print(b[0], b[1], b[2], b[3], b[4 + class_idx])
             #---------------------------------------------------#
             #   b[5]-b[14]为人脸关键点的坐标
             #---------------------------------------------------#
-            cv2.circle(old_image, (b[5], b[6]), 1, (0, 0, 255), 4)
-            cv2.circle(old_image, (b[7], b[8]), 1, (0, 255, 255), 4)
-            cv2.circle(old_image, (b[9], b[10]), 1, (255, 0, 255), 4)
-            cv2.circle(old_image, (b[11], b[12]), 1, (0, 255, 0), 4)
-            cv2.circle(old_image, (b[13], b[14]), 1, (255, 0, 0), 4)
+            for i in range(8, 44,2):
+                cv2.circle(old_image, (b[i], b[i+1]), 1, (0, 0, 255), 4)
         return old_image
 
     def get_FPS(self, image, test_interval):
