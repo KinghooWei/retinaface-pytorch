@@ -13,13 +13,47 @@ def retinaface_correct_boxes(result, input_shape, image_shape):
     scale       = input_shape / new_shape
     
     scale_for_boxs      = [scale[1], scale[0], scale[1], scale[0]]
-    scale_for_landmarks = [scale[1], scale[0], scale[1], scale[0], scale[1], scale[0], scale[1], scale[0], scale[1], scale[0]]
+    scale_for_landmarks = [scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0],
+                           scale[1], scale[0]]
 
     offset_for_boxs         = [offset[1], offset[0], offset[1],offset[0]]
-    offset_for_landmarks    = [offset[1], offset[0], offset[1], offset[0], offset[1], offset[0], offset[1], offset[0], offset[1], offset[0]]
+    offset_for_landmarks    = [offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0],
+                               offset[1], offset[0]]
 
     result[:, :4] = (result[:, :4] - np.array(offset_for_boxs)) * np.array(scale_for_boxs)
-    result[:, 5:] = (result[:, 5:] - np.array(offset_for_landmarks)) * np.array(scale_for_landmarks)
+    result[:, 8:] = (result[:, 8:] - np.array(offset_for_landmarks)) * np.array(scale_for_landmarks)
 
     return result
 
@@ -42,6 +76,19 @@ def decode_landm(pre, priors, variances):
                         priors[:, :2] + pre[:, 4:6] * variances[0] * priors[:, 2:],
                         priors[:, :2] + pre[:, 6:8] * variances[0] * priors[:, 2:],
                         priors[:, :2] + pre[:, 8:10] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 10:12] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 12:14] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 14:16] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 16:18] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 18:20] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 20:22] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 22:24] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 24:26] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 26:28] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 28:30] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 30:32] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 32:34] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 34:36] * variances[0] * priors[:, 2:],
                         ), dim=1)
     return landms
 
@@ -69,7 +116,11 @@ def non_max_suppression(detection, conf_thres=0.5, nms_thres=0.3):
     #   在进行重合框筛选前就
     #   进行得分的筛选可以大幅度减少框的数量。
     #------------------------------------------#
-    mask        = detection[:, -1] >= conf_thres and detection[:, 4:7].argmax(0) > 0
+    # mask        = detection[:, 7] >= conf_thres
+    print(detection[:, 7].max())
+    # detection   = detection[mask]
+    mask        = torch.max(detection[:, 5:7], 1)[0] > 0.9
+    # best_box = detection[mask]
     detection   = detection[mask]
 
     if len(detection) <= 0:
@@ -80,7 +131,7 @@ def non_max_suppression(detection, conf_thres=0.5, nms_thres=0.3):
     #------------------------------------------#
     keep = nms(
         detection[:, :4],
-        detection[:, -1],
+        detection[:, 7],
         nms_thres
     )
     best_box = detection[keep]

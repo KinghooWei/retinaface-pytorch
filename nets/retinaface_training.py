@@ -133,7 +133,7 @@ def match(threshold, truths, priors, variances, labels, landms, loc_t, conf_t, l
     # (num_priors)
     conf = torch.LongTensor(num_priors).fill_(1)
     conf[best_truth_overlap < threshold] = 0
-    # 每一个先验框对应键点(num_priors, 36)
+    # 每一个先验框对应关键点(num_priors, 36)
     matches_landm = landms[best_truth_idx]
     # 获取每一个先验框对应的类别标签(num_priors, 3)
     clazz = torch.LongTensor(num_priors, 3).fill_(0)
@@ -169,7 +169,7 @@ class MultiBoxLoss(nn.Module):
     def __init__(self, num_classes, overlap_thresh, neg_pos, variance, cuda=True):
         super(MultiBoxLoss, self).__init__()
         #----------------------------------------------#
-        #   对于retinaface而言num_classes等于2
+        #   对于retinaface而言num_classes等于3
         #----------------------------------------------#
         self.num_classes    = num_classes
         #----------------------------------------------#
@@ -189,7 +189,7 @@ class MultiBoxLoss(nn.Module):
     # 对一个batch的样本计算损失
     def forward(self, predictions, priors, targets):
         #--------------------------------------------------------------------#
-        #   取出预测结果的三个值：框的回归信息，置信度，人脸关键点的回归信息
+        #   取出预测结果的四个值：框的回归信息、置信度、人脸关键点的回归信息、类别信息
         #--------------------------------------------------------------------#
         loc_data, conf_data, landm_data, class_data = predictions
         #--------------------------------------------------#

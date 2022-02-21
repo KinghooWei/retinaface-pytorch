@@ -25,7 +25,8 @@ class Retinaface(object):
         #   model_path指向logs文件夹下的权值文件
         #   训练好后logs文件夹下存在多个权值文件，选择损失较低的即可。
         #---------------------------------------------------------------------#
-        "model_path"        : 'model_data/Retinaface_mobilenet0.25.pth',
+        # "model_path"        : 'model_data/Retinaface_mobilenet0.25.pth',
+        "model_path": 'logs/Epoch100-Total_Loss478798089050203.5000.pth',
         #---------------------------------------------------------------------#
         #   所使用的的主干网络：mobilenet、resnet50
         #---------------------------------------------------------------------#
@@ -133,7 +134,13 @@ class Retinaface(object):
         scale_for_landmarks = [
             np.shape(image)[1], np.shape(image)[0], np.shape(image)[1], np.shape(image)[0],
             np.shape(image)[1], np.shape(image)[0], np.shape(image)[1], np.shape(image)[0],
-            np.shape(image)[1], np.shape(image)[0]
+            np.shape(image)[1], np.shape(image)[0], np.shape(image)[1], np.shape(image)[0],
+            np.shape(image)[1], np.shape(image)[0], np.shape(image)[1], np.shape(image)[0],
+            np.shape(image)[1], np.shape(image)[0], np.shape(image)[1], np.shape(image)[0],
+            np.shape(image)[1], np.shape(image)[0], np.shape(image)[1], np.shape(image)[0],
+            np.shape(image)[1], np.shape(image)[0], np.shape(image)[1], np.shape(image)[0],
+            np.shape(image)[1], np.shape(image)[0], np.shape(image)[1], np.shape(image)[0],
+            np.shape(image)[1], np.shape(image)[0], np.shape(image)[1], np.shape(image)[0],
         ]
 
         #---------------------------------------------------------#
@@ -167,7 +174,7 @@ class Retinaface(object):
             #-----------------------------------------------------------#
             #   获得预测结果的置信度
             #-----------------------------------------------------------#
-            conf    = conf.data.squeeze(0)
+            conf    = conf.data.squeeze(0).unsqueeze(1)
 
             #-----------------------------------------------------------#
             #   对人脸关键点进行解码
