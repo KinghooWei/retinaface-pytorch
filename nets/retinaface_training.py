@@ -136,12 +136,13 @@ def match(threshold, truths, priors, variances, labels, landms, loc_t, conf_t, l
     # 每一个先验框对应关键点(num_priors, 36)
     matches_landm = landms[best_truth_idx]
     # 获取每一个先验框对应的类别标签(num_priors, 3)
-    clazz = torch.LongTensor(num_priors, 3).fill_(0)
-    prior_labels = labels[best_truth_idx]
-    for i in range(num_priors):
-        index = (torch.LongTensor([i, prior_labels[idx]]),)
-        clazz.index_put_(index, torch.LongTensor(1))
-    clazz[best_truth_overlap < threshold] = 0
+    # clazz = torch.LongTensor(num_priors, 3).fill_(0)
+    # prior_labels = labels[best_truth_idx]
+    # for i in range(num_priors):
+    #     index = (torch.LongTensor([i, prior_labels[i]]),)
+    #     clazz.index_put_(index, torch.LongTensor(1))
+    # clazz[best_truth_overlap < threshold] = 0
+    clazz = labels[best_truth_idx]
 
     #----------------------------------------------#
     #   利用真实框和先验框进行编码
@@ -210,7 +211,7 @@ class MultiBoxLoss(nn.Module):
         for idx in range(num):
             # 获得真实框与标签
             truths = targets[idx][:, :4].data
-            labels = targets[idx][:, -1].data
+            labels = targets[idx][:, 40:].data
             landms = targets[idx][:, 4:40].data
 
             # 获得先验框

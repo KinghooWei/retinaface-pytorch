@@ -26,13 +26,13 @@ class DataGenerator(data.Dataset):
         #-----------------------------------#
         img         = Image.open(self.imgs_path[index])
         labels      = self.words[index]
-        annotations = np.zeros((0, 41))
+        annotations = np.zeros((0, 43))
 
         if len(labels) == 0:
             return img, annotations
 
         for idx, label in enumerate(labels):
-            annotation = np.zeros((1, 41))
+            annotation = np.zeros((1, 43))
             #-----------------------------------#
             #   bbox 真实框的位置
             #-----------------------------------#
@@ -48,7 +48,7 @@ class DataGenerator(data.Dataset):
                 annotation[0, i] = label[i+1]
 
             # 类别：1：无口罩人脸    2：戴口罩人脸
-            annotation[0, 40] = label[0] + 1
+            annotation[0, 41+int(label[0])] = 1
             # 是否有关键点
             # if (annotation[0, 4]<0):
             #     annotation[0, 14] = -1
