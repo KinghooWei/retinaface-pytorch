@@ -26,7 +26,7 @@ class Retinaface(object):
         #   训练好后logs文件夹下存在多个权值文件，选择损失较低的即可。
         #---------------------------------------------------------------------#
         # "model_path"        : 'model_data/Retinaface_mobilenet0.25.pth',
-        "model_path": 'logs/Epoch100-Total_Loss478798089050203.5000.pth',
+        "model_path": 'logs/Epoch6-Total_Loss229.6678.pth',
         #---------------------------------------------------------------------#
         #   所使用的的主干网络：mobilenet、resnet50
         #---------------------------------------------------------------------#
@@ -202,6 +202,8 @@ class Retinaface(object):
 
         for b in boxes_conf_landms:
             class_idx = b[4:7].argmax(0)
+            if class_idx == 0:
+                continue
             clazz = category_index[class_idx]
             text = "{} {:.2%}".format(clazz, b[4 + class_idx])
             b = list(map(int, b))
@@ -214,7 +216,7 @@ class Retinaface(object):
             cv2.putText(old_image, text, (cx, cy),
                         cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
 
-            print(b[0], b[1], b[2], b[3], b[4 + class_idx])
+            print(b[0], b[1], b[2], b[3], clazz)
             #---------------------------------------------------#
             #   b[5]-b[14]为人脸关键点的坐标
             #---------------------------------------------------#

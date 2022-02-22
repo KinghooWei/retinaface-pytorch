@@ -207,6 +207,20 @@ class MultiBoxLoss(nn.Module):
         conf_t  = torch.LongTensor(num, num_priors)
         class_t = torch.Tensor(num, num_priors, 3)
 
+        # --------------------------------------------------#
+        #   转化成Variable
+        #   loc_t   (num, num_priors, 4)
+        #   conf_t  (num, num_priors)
+        #   landm_t (num, num_priors, 10)
+        # --------------------------------------------------#
+        zeros = torch.tensor(0)
+        if self.cuda:
+            loc_t = loc_t.cuda()
+            conf_t = conf_t.cuda()
+            landm_t = landm_t.cuda()
+            class_t = class_t.cuda()
+            zeros = zeros.cuda()
+
         # 遍历一个batch的样本
         for idx in range(num):
             # 获得真实框与标签
@@ -223,19 +237,7 @@ class MultiBoxLoss(nn.Module):
             #--------------------------------------------------#
             match(self.threshold, truths, defaults, self.variance, labels, landms, loc_t, conf_t, landm_t, class_t, idx)
             
-        #--------------------------------------------------#
-        #   转化成Variable
-        #   loc_t   (num, num_priors, 4)
-        #   conf_t  (num, num_priors)
-        #   landm_t (num, num_priors, 10)
-        #--------------------------------------------------#
-        zeros = torch.tensor(0)
-        if self.cuda:
-            loc_t = loc_t.cuda()
-            conf_t = conf_t.cuda()
-            landm_t = landm_t.cuda()
-            class_t = class_t.cuda()
-            zeros = zeros.cuda()
+
 
         #------------------------------------------------------------------------#
         #   有人脸关键点的人脸真实框的标签为1，没有人脸关键点的人脸真实框标签为-1
@@ -244,36 +246,45 @@ class MultiBoxLoss(nn.Module):
         #------------------------------------------------------------------------#
         # (batch, num_priors)
         pos = conf_t > zeros
-        # (batch, num_priors, 10)
+        # (batch, num_priors, 36)
         pos_idx = pos.unsqueeze(pos.dim()).expand_as(landm_data)
         # (473, 10) 某一batch有473个有关键点的正样本
         landm_p = landm_data[pos_idx].view(-1, 36)
         landm_t = landm_t[pos_idx].view(-1, 36)
         loss_landm = F.smooth_l1_loss(landm_p, landm_t, reduction='sum')
 
+        # (batch, num_priors, 4)
         pos_idx = pos.unsqueeze(pos.dim()).expand_as(loc_data)
         # (473, 4) 某一batch有473个有真实框的正样本
         loc_p = loc_data[pos_idx].view(-1, 4)
         loc_t = loc_t[pos_idx].view(-1, 4)
         loss_l = F.smooth_l1_loss(loc_p, loc_t, reduction='sum')
 
+        pos_idx = pos.unsqueeze(pos.dim()).expand_as(class_data)
+        class_p = class_data[pos_idx].view(-1, 3)
+        class_t = class_t[pos_idx].view(-1, 3)
+        # class_t = class_t[(pos_idx + neg_idx).gt(0)].view(-1, self.num_classes)
+        loss_c = F.smooth_l1_loss(class_p, class_t, reduction='sum')
+
         #--------------------------------------------------#
         #   batch_conf  (num * num_priors, 2)
         #   loss_c      (num, num_priors)
         #--------------------------------------------------#
         # conf_t[pos] = 1
-        batch_class = class_data.view(-1, self.num_classes)
+        # (batch*num_priors, 1)
+        batch_class = conf_data.view(-1, 1)
         # 这个地方是在寻找难分类的先验框
-        loss_c = log_sum_exp(batch_class) - batch_class.gather(1, conf_t.view(-1, 1))
+        loss_conf = log_sum_exp(batch_class) - batch_class.gather(1, conf_t.view(-1, 1))
 
         # 难分类的先验框不把正样本考虑进去，只考虑难分类的负样本
-        loss_c[pos.view(-1, 1)] = 0
-        loss_c = loss_c.view(num, -1)
+        loss_conf[pos.view(-1, 1)] = 0
+        # (batch, -1)
+        loss_conf = loss_conf.view(num, -1)
         #--------------------------------------------------#
         #   loss_idx    (num, num_priors)
         #   idx_rank    (num, num_priors)
         #--------------------------------------------------#
-        _, loss_idx = loss_c.sort(1, descending=True)
+        _, loss_idx = loss_conf.sort(1, descending=True)
         _, idx_rank = loss_idx.sort(1)
         #--------------------------------------------------#
         #   求和得到每一个图片内部有多少正样本
@@ -290,17 +301,17 @@ class MultiBoxLoss(nn.Module):
         #   pos_idx   (num, num_priors, num_classes)
         #   neg_idx   (num, num_priors, num_classes)
         #--------------------------------------------------#
-        pos_idx = pos.unsqueeze(2).expand_as(class_data)
-        neg_idx = neg.unsqueeze(2).expand_as(class_data)
+        # pos_idx = pos.unsqueeze(2).expand_as(conf_data)
+        # neg_idx = neg.unsqueeze(2).expand_as(conf_data)
         
         # 选取出用于训练的正样本与负样本，计算loss
         # (3888, 2)
-        class_p = class_data[(pos_idx+neg_idx).gt(0)].view(-1,self.num_classes)
+        # conf_p = conf_data[(pos_idx+neg_idx).gt(0)].view(-1,self.num_classes)
+        conf_p = conf_data[(pos + neg).gt(0)].view(-1, self.num_classes)
         targets_weighted = conf_t[(pos+neg).gt(0)]
-        loss_conf = F.cross_entropy(class_p, targets_weighted, reduction='sum')
+        loss_conf = F.cross_entropy(conf_p, targets_weighted, reduction='sum')
 
-        class_t = class_t[(pos_idx+neg_idx).gt(0)].view(-1,self.num_classes)
-        loss_c = F.smooth_l1_loss(class_p, class_t, reduction='sum')
+
 
         N = max(num_pos.data.sum().float(), 1)
         loss_l /= N
