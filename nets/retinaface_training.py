@@ -131,7 +131,7 @@ def match(threshold, truths, priors, variances, labels, landms, loc_t, conf_t, l
     matches = truths[best_truth_idx]            
     # 获取每一个先验框对应的置信度(num_priors)，如果重合程度小于threhold则认为是背景
     # (num_priors)
-    conf = torch.LongTensor(num_priors).fill_(1)
+    conf = torch.Tensor(num_priors).fill_(1)
     conf[best_truth_overlap < threshold] = 0
     # 每一个先验框对应关键点(num_priors, 36)
     matches_landm = landms[best_truth_idx]
@@ -142,7 +142,9 @@ def match(threshold, truths, priors, variances, labels, landms, loc_t, conf_t, l
     #     index = (torch.LongTensor([i, prior_labels[i]]),)
     #     clazz.index_put_(index, torch.LongTensor(1))
     # clazz[best_truth_overlap < threshold] = 0
+    # 获取每一个先验框对应的类别(num_priors)，如果重合程度小于threhold则认为是背景
     clazz = labels[best_truth_idx]
+    clazz[best_truth_overlap < threshold] = 0
 
     #----------------------------------------------#
     #   利用真实框和先验框进行编码
@@ -204,8 +206,8 @@ class MultiBoxLoss(nn.Module):
         #--------------------------------------------------#
         loc_t   = torch.Tensor(num, num_priors, 4)
         landm_t = torch.Tensor(num, num_priors, 36)
-        conf_t  = torch.LongTensor(num, num_priors)
-        class_t = torch.Tensor(num, num_priors, 3)
+        conf_t  = torch.Tensor(num, num_priors)
+        class_t = torch.LongTensor(num, num_priors)
 
         # --------------------------------------------------#
         #   转化成Variable
@@ -213,7 +215,7 @@ class MultiBoxLoss(nn.Module):
         #   conf_t  (num, num_priors)
         #   landm_t (num, num_priors, 10)
         # --------------------------------------------------#
-        zeros = torch.tensor(0)
+        zeros = torch.tensor(0.)
         if self.cuda:
             loc_t = loc_t.cuda()
             conf_t = conf_t.cuda()
@@ -225,7 +227,7 @@ class MultiBoxLoss(nn.Module):
         for idx in range(num):
             # 获得真实框与标签
             truths = targets[idx][:, :4].data
-            labels = targets[idx][:, 40:].data
+            labels = targets[idx][:, 40].data
             landms = targets[idx][:, 4:40].data
 
             # 获得先验框
@@ -260,11 +262,7 @@ class MultiBoxLoss(nn.Module):
         loc_t = loc_t[pos_idx].view(-1, 4)
         loss_l = F.smooth_l1_loss(loc_p, loc_t, reduction='sum')
 
-        pos_idx = pos.unsqueeze(pos.dim()).expand_as(class_data)
-        class_p = class_data[pos_idx].view(-1, 3)
-        class_t = class_t[pos_idx].view(-1, 3)
-        # class_t = class_t[(pos_idx + neg_idx).gt(0)].view(-1, self.num_classes)
-        loss_c = F.smooth_l1_loss(class_p, class_t, reduction='sum')
+
 
         #--------------------------------------------------#
         #   batch_conf  (num * num_priors, 2)
@@ -272,13 +270,15 @@ class MultiBoxLoss(nn.Module):
         #--------------------------------------------------#
         # conf_t[pos] = 1
         # (batch*num_priors, 1)
-        batch_class = conf_data.view(-1, 1)
+        batch_conf = conf_data.view(-1, 1)
         # 这个地方是在寻找难分类的先验框
-        loss_conf = log_sum_exp(batch_class) - batch_class.gather(1, conf_t.view(-1, 1))
+        # loss_conf = log_sum_exp(batch_conf) - batch_conf.gather(1, conf_t.view(-1, 1))
+        loss_conf = batch_conf - conf_t.view(-1, 1).float()
 
         # 难分类的先验框不把正样本考虑进去，只考虑难分类的负样本
+        # (batch*anchor, 1)
         loss_conf[pos.view(-1, 1)] = 0
-        # (batch, -1)
+        # (batch, anchor)
         loss_conf = loss_conf.view(num, -1)
         #--------------------------------------------------#
         #   loss_idx    (num, num_priors)
@@ -307,11 +307,16 @@ class MultiBoxLoss(nn.Module):
         # 选取出用于训练的正样本与负样本，计算loss
         # (3888, 2)
         # conf_p = conf_data[(pos_idx+neg_idx).gt(0)].view(-1,self.num_classes)
-        conf_p = conf_data[(pos + neg).gt(0)].view(-1, self.num_classes)
-        targets_weighted = conf_t[(pos+neg).gt(0)]
-        loss_conf = F.cross_entropy(conf_p, targets_weighted, reduction='sum')
+        conf_p = conf_data[(pos + neg).gt(0)].view(-1, 1)
+        targets_weighted = conf_t[(pos+neg).gt(0)].view(-1, 1)
+        # loss_conf = F.cross_entropy(conf_p, targets_weighted, reduction='sum')
+        loss_conf = F.smooth_l1_loss(conf_p, targets_weighted, reduction='sum')
 
 
+        class_p = class_data[(pos + neg).gt(0)].view(-1, 3)
+        class_t = class_t[(pos+neg).gt(0)].view(-1, 1)
+        # class_t = class_t[(pos_idx + neg_idx).gt(0)].view(-1, self.num_classes)
+        loss_c = F.cross_entropy(class_p, class_t.squeeze(), reduction='sum')
 
         N = max(num_pos.data.sum().float(), 1)
         loss_l /= N

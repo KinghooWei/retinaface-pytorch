@@ -13,6 +13,7 @@ from retinaface import Retinaface
 if __name__ == "__main__":
     dir_origin_path = "img/"
     dir_save_path = "img_out/"
+    validate_dir = './data/widerface/val/images/'
     if not os.path.exists(dir_save_path):
         os.mkdir(dir_save_path)
     retinaface = Retinaface()
@@ -23,7 +24,9 @@ if __name__ == "__main__":
     #   'fps'表示测试fps，使用的图片是img里面的street.jpg，详情查看下方注释。
     #   'dir_predict'表示遍历文件夹进行检测并保存。默认遍历img文件夹，保存img_out文件夹，详情查看下方注释。
     # ----------------------------------------------------------------------------------------------------------#
-    mode = "predict"
+    # mode = "predict"
+    # mode = 'validate'
+    mode = 'video'
     # ----------------------------------------------------------------------------------------------------------#
     #   video_path用于指定视频的路径，当video_path=0时表示检测摄像头
     #   想要检测视频，则设置如video_path = "xxx.mp4"即可，代表读取出根目录下的xxx.mp4文件。
@@ -57,19 +60,40 @@ if __name__ == "__main__":
         4、如果想要截取下目标，可以利用获取到的(b[0], b[1]), (b[2], b[3])这四个值在原图上利用矩阵的方式进行截取。
         5、在更换facenet网络后一定要重新进行人脸编码，运行encoding.py。
         '''
-        while True:
-            img = input('Input image filename:')
-            image = cv2.imread(dir_origin_path + img)
-            if image is None:
-                print('Open Error! Try again!')
-                continue
-            else:
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                r_image = retinaface.detect_image(image)
-                r_image = cv2.cvtColor(r_image, cv2.COLOR_RGB2BGR)
-                cv2.imwrite(dir_save_path + img, r_image)
+        t_begin = time.time()
+        count = 0
+        for i, (filepath, dirnames, filenames) in enumerate(os.walk(dir_origin_path)):
+            for j, filename in enumerate(filenames):
+                if filename.find(".jpg") != -1:
+                    count += 1
+                    image = cv2.imread(filepath + '/' + filename)
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                    r_image = retinaface.detect_image(image)
+                    r_image = cv2.cvtColor(r_image, cv2.COLOR_RGB2BGR)
+                    cv2.imwrite(dir_save_path + filename, r_image)
+        t_end = time.time()
+        print('检测%d张图片，用时：%.2fms，平均用时：%.2fms'%(count, t_end-t_begin, (t_end-t_begin)/count))
+        # while True:
+        #     img = input('Input image filename:')
+        #     image = cv2.imread(dir_origin_path + img)
+        #     if image is None:
+        #         print('Open Error! Try again!')
+        #         continue
+        #     else:
+        #         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        #         r_image = retinaface.detect_image(image)
+        #         r_image = cv2.cvtColor(r_image, cv2.COLOR_RGB2BGR)
+        #         cv2.imwrite(dir_save_path + img, r_image)
                 # cv2.imshow("after",r_image)
                 # cv2.waitKey(0)
+    elif mode == 'validate':
+        for i, (filepath, dirnames, filenames) in enumerate(os.walk(validate_dir)):
+            for j, filename in enumerate(filenames):
+                if filename.find(".jpg") != -1:
+                    image = cv2.imread(filepath + '/' + filename)
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                    retinaface.detect_image(image, True, filename, './detections/')
+        t_end = time.time()
 
     elif mode == "video":
         capture = cv2.VideoCapture(video_path)
@@ -100,7 +124,7 @@ if __name__ == "__main__":
             print("fps= %.2f" % (fps))
             frame = cv2.putText(frame, "fps= %.2f" % (fps), (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-            # cv2.imshow("video",frame)
+            cv2.imshow("video",frame)
             c = cv2.waitKey(1) & 0xff
             if video_save_path != "":
                 out.write(frame)

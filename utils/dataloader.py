@@ -6,12 +6,12 @@ from utils.utils import preprocess_input
 
 
 class DataGenerator(data.Dataset):
-    def __init__(self, txt_path, img_size):
+    def __init__(self, txt_path, img_size, form='train'):
         # 840
         self.img_size = img_size
         # './data/widerface/train/label.txt'
         self.txt_path = txt_path
-
+        self.form = form
         self.imgs_path, self.words = self.process_labels()
 
     def __len__(self):
@@ -26,13 +26,13 @@ class DataGenerator(data.Dataset):
         #-----------------------------------#
         img         = Image.open(self.imgs_path[index])
         labels      = self.words[index]
-        annotations = np.zeros((0, 43))
+        annotations = np.zeros((0, 41))
 
         if len(labels) == 0:
             return img, annotations
 
         for idx, label in enumerate(labels):
-            annotation = np.zeros((1, 43))
+            annotation = np.zeros((1, 41))
             #-----------------------------------#
             #   bbox 真实框的位置
             #-----------------------------------#
@@ -48,7 +48,7 @@ class DataGenerator(data.Dataset):
                 annotation[0, i] = label[i+1]
 
             # 类别：1：无口罩人脸    2：戴口罩人脸
-            annotation[0, 41+int(label[0])] = 1
+            annotation[0, 40] = 1 + label[0]
             # 是否有关键点
             # if (annotation[0, 4]<0):
             #     annotation[0, 14] = -1
@@ -56,8 +56,10 @@ class DataGenerator(data.Dataset):
             #     annotation[0, 14] = 1
             annotations = np.append(annotations, annotation, axis=0)
         target = np.array(annotations)
-
-        img, target = self.get_random_data(img, target, [self.img_size,self.img_size])
+        if self.form == 'train':
+            img, target = self.get_random_data(img, target, [self.img_size,self.img_size])
+        elif self.form == 'val':
+            img, target = self.resize_padding(img, target, [self.img_size,self.img_size])
 
         img = np.array(np.transpose(preprocess_input(img), (2, 0, 1)), dtype=np.float32)
         return img, target
@@ -65,10 +67,60 @@ class DataGenerator(data.Dataset):
     def rand(self, a=0, b=1):
         return np.random.rand()*(b-a) + a
 
-    def get_random_data(self, image, targes, input_shape, jitter=.3, hue=.1, sat=1.5, val=1.5):
+    def resize_padding(self, image, target, input_shape):
+        iw, ih = image.size
+        h, w = input_shape
+        box = target
+
+        ratio = float(iw)/ih
+        if ratio > 1:
+            nw = w
+            nh = int(nw/ratio)
+        else:
+            nh = h
+            nw = int(nh * ratio)
+        image = image.resize((nw, nh), Image.BICUBIC)
+        # ------------------------------------------#
+        #   将图像多余的部分加上灰条
+        # ------------------------------------------#
+        dx = int((w - nw)/2)
+        dy = int((h - nh)/2)
+        new_image = Image.new('RGB', (w, h), (128, 128, 128))
+        new_image.paste(image, (dx, dy))
+        image_data = new_image
+
+        # ---------------------------------#
+        #   对真实框进行调整
+        # ---------------------------------#
+        if len(box) > 0:
+            box[:, [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38]] = box[:,[0, 2, 4, 6, 8, 10,12, 14, 16, 18, 20,22, 24, 26, 28, 30,32, 34, 36,38]] * nw / iw + dx
+            box[:, [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39]] = box[:,[1, 3, 5, 7, 9, 11,13, 15, 17, 19, 21,23, 25, 27, 29, 31,33, 35, 37,39]] * nh / ih + dy
+
+            center_x = (box[:, 0] + box[:, 2]) / 2
+            center_y = (box[:, 1] + box[:, 3]) / 2
+
+            box = box[np.logical_and(np.logical_and(center_x > 0, center_y > 0), np.logical_and(center_x < w, center_y < h))]
+
+            box[:, [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38]][
+                box[:, [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38]] > w] = w
+            box[:, [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39]][
+                box[:, [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39]] > h] = h
+            box[:, :40][box[:, :40] < 0] = 0
+
+            box_w = box[:, 2] - box[:, 0]
+            box_h = box[:, 3] - box[:, 1]
+            box = box[np.logical_and(box_w > 1, box_h > 1)]  # discard invalid box
+
+        # box[:,4:-1][box[:,-1]==-1]=0
+        box[:, [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38]] /= w
+        box[:, [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39]] /= h
+        box_data = box
+        return image_data, box_data
+
+    def get_random_data(self, image, target, input_shape, jitter=.3, hue=.1, sat=1.5, val=1.5):
         iw, ih  = image.size
         h, w    = input_shape
-        box     = targes
+        box     = target
 
         #------------------------------------------#
         #   对图像进行缩放并且进行长和宽的扭曲
@@ -122,29 +174,29 @@ class DataGenerator(data.Dataset):
             np.random.shuffle(box)
             box[:, [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38]] = box[:, [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38]]*nw/iw + dx
             box[:, [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39]] = box[:, [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39]]*nh/ih + dy
-            if flip: 
+            if flip:
                 box[:, [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38]] = w - box[:, [2,0,22,20,18,16,14,12,10,8,6,4,38,36,34,32,30,28,26,24]]
                 box[:, [5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39]]     = box[:, [23,21,19,17,15,13,11,9,7,5,39,37,35,33,31,29,27,25]]
-            
+
             center_x = (box[:, 0] + box[:, 2])/2
             center_y = (box[:, 1] + box[:, 3])/2
-        
+
             box = box[np.logical_and(np.logical_and(center_x>0, center_y>0), np.logical_and(center_x<w, center_y<h))]
 
             box[:, 0:40][box[:, 0:40]<0] = 0
             box[:, [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38]][box[:, [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38]]>w] = w
             box[:, [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39]][box[:, [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39]]>h] = h
-            
+
             box_w = box[:, 2] - box[:, 0]
             box_h = box[:, 3] - box[:, 1]
             box = box[np.logical_and(box_w>1, box_h>1)] # discard invalid box
 
-        box[:,4:-1][box[:,-1]==-1]=0
+        # box[:,4:-1][box[:,-1]==-1]=0
         box[:, [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38]] /= w
         box[:, [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39]] /= h
         box_data = box
         return image_data, box_data
-        
+
     def process_labels(self):
         imgs_path = []
         words = []

@@ -26,7 +26,7 @@ class Retinaface(object):
         #   训练好后logs文件夹下存在多个权值文件，选择损失较低的即可。
         #---------------------------------------------------------------------#
         # "model_path"        : 'model_data/Retinaface_mobilenet0.25.pth',
-        "model_path": 'logs/Epoch6-Total_Loss229.6678.pth',
+        "model_path": 'logs/2022_02_28_09_58_03/Epoch89-Val_Min_Loss1.9594.pth',
         #---------------------------------------------------------------------#
         #   所使用的的主干网络：mobilenet、resnet50
         #---------------------------------------------------------------------#
@@ -108,7 +108,7 @@ class Retinaface(object):
     #---------------------------------------------------#
     #   检测图片
     #---------------------------------------------------#
-    def detect_image(self, image):
+    def detect_image(self, image, validate=False, img_name=None, des_dir=None):
         json_file = open(self.json_path, 'r')
         class_dict = json.load(json_file)
         json_file.close()
@@ -184,26 +184,34 @@ class Retinaface(object):
             #-----------------------------------------------------------#
             #   对人脸识别结果进行堆叠
             #-----------------------------------------------------------#
-            boxes_conf_landms = torch.cat([boxes, classes, conf, landms], -1)
-            boxes_conf_landms = non_max_suppression(boxes_conf_landms, self.confidence)
+            loc_c_conf_landms = torch.cat([boxes, classes, conf, landms], -1)
+            loc_c_conf_landms = non_max_suppression(loc_c_conf_landms, self.confidence)
 
-            if len(boxes_conf_landms) <= 0:
+            if len(loc_c_conf_landms) <= 0:
                 return old_image
 
             #---------------------------------------------------------#
             #   如果使用了letterbox_image的话，要把灰条的部分去除掉。
             #---------------------------------------------------------#
             if self.letterbox_image:
-                boxes_conf_landms = retinaface_correct_boxes(boxes_conf_landms, \
+                loc_c_conf_landms = retinaface_correct_boxes(loc_c_conf_landms, \
                     np.array([self.input_shape[0], self.input_shape[1]]), np.array([im_height, im_width]))
             
-        boxes_conf_landms[:, :4] = boxes_conf_landms[:, :4] * scale
-        boxes_conf_landms[:, 8:] = boxes_conf_landms[:, 8:] * scale_for_landmarks
+        loc_c_conf_landms[:, :4] = loc_c_conf_landms[:, :4] * scale
+        loc_c_conf_landms[:, 8:] = loc_c_conf_landms[:, 8:] * scale_for_landmarks
 
-        for b in boxes_conf_landms:
-            class_idx = b[4:7].argmax(0)
-            if class_idx == 0:
-                continue
+        if validate:
+            with open(des_dir + img_name.replace('jpg', 'txt'), 'w') as file:
+                for label in loc_c_conf_landms:
+                    class_idx = label[5:7].argmax(0) + 1
+                    clazz = category_index[class_idx]
+                    conf = label[4 + class_idx]
+                    print('%s %s %f'%(img_name, clazz, conf))
+                    file.write('%s %f %d %d %d %d\n' % (clazz, conf, label[0], label[1], label[2], label[3]))
+            return
+
+        for b in loc_c_conf_landms:
+            class_idx = b[5:7].argmax(0) + 1
             clazz = category_index[class_idx]
             text = "{} {:.2%}".format(clazz, b[4 + class_idx])
             b = list(map(int, b))

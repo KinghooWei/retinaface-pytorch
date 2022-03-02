@@ -116,12 +116,12 @@ def non_max_suppression(detection, conf_thres=0.5, nms_thres=0.3):
     #   在进行重合框筛选前就
     #   进行得分的筛选可以大幅度减少框的数量。
     #------------------------------------------#
-    # mask        = detection[:, 7] >= 0
-    # print(detection[:, 7].max(), detection[:, 7].min())
-    # detection   = detection[mask]
-    mask        = torch.max(detection[:, 5:7], 1)[0] > 0.99
-    print(torch.max(detection[:, 5:7]))
+    mask        = detection[:, 7] >= conf_thres
+    print(detection[:, 7].max(), detection[:, 7].min())
     detection   = detection[mask]
+    # mask        = torch.max(detection[:, 5:7], 1)[0] > 0.99
+    # print(torch.max(detection[:, 5:7]))
+    # detection   = detection[mask]
 
     if len(detection) <= 0:
         return []
